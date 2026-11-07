@@ -1,0 +1,16 @@
+# Containers without a CoreProtect placement record after this date get removed.
+cutoff-date: "2026-11-01"
+
+ignored-regions:
+  - spawn
+  - shop
+  - casino
+  - donators
+  - pvparena
+
+ignored-worlds: []
+
+messages:
+  removed: "&cThis container was from the old map and has been removed."
+  notify: "&8[&cOldLoot&8] &7Removed &f%type% &7at &f%world% %x% %y% %z% &7(%cause%)"
+  reloaded: "&aConfig reloaded."

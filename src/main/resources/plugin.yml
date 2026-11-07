@@ -1,0 +1,22 @@
+name: JESOldLootRemover
+version: '${version}'
+main: dev.ciel.jESOldLootRemover.JESOldLootRemover
+api-version: '26.2'
+load: POSTWORLD
+author: ciel
+description: Removes containers placed before the season cutoff.
+depend: [CoreProtect]
+softdepend: [WorldGuard]
+
+commands:
+  oldlootremover:
+    description: Reload the config.
+    usage: /oldlootremover reload
+    aliases: [olr]
+    permission: oldlootremover.admin
+
+permissions:
+  oldlootremover.notify:
+    default: op
+  oldlootremover.admin:
+    default: op
