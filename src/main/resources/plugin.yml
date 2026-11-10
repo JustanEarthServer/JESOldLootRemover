@@ -10,8 +10,8 @@ softdepend: [WorldGuard]
 
 commands:
   oldlootremover:
-    description: Reload the config.
-    usage: /oldlootremover reload
+    description: Reload the config or toggle debug logging.
+    usage: /oldlootremover <reload|debug>
     aliases: [olr]
     permission: oldlootremover.admin
 

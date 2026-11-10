@@ -1,4 +1,5 @@
 # Containers without a CoreProtect placement record after this date get removed.
+# Containers in newly generated chunks and unopened structure chests are always kept.
 cutoff-date: "2026-11-01"
 
 ignored-regions:
@@ -10,7 +11,50 @@ ignored-regions:
 
 ignored-worlds: []
 
+# Limits for loot that structure chests roll (bastions, ruined portals, fortresses, dungeons...).
+# Applied when the loot is generated, so opening, breaking or hoppering the chest all give the same result.
+#
+#   *-max     most of that item one chest can get in total. 0 = never, -1 = no limit.
+#   *-chance  percent of the vanilla amount that is kept. 100 = vanilla, 10 = a tenth, 0 = never.
+#
+# "default" applies to every chest type. The sections below it only need the settings
+# you want to change for that chest type. Changes apply after /olr reload.
+loot:
+  default:
+    netherite-scrap-max: 1
+    netherite-ingot-max: 0
+    gold-ingot-max: 4
+    gold-block-max: 0
+    ancient-debris-chance: 10
+    upgrade-template-chance: 25
+
+  # Bastion treasure room. Vanilla: 3 rolls, each 13% for a netherite ingot, 9% for 1 ancient debris,
+  # 4% for 2 ancient debris, 7% for 1 netherite scrap. 3-4 rolls, each 11% for 3-9 gold ingots
+  # and 11% for 2-5 gold blocks. Upgrade template always (100%).
+  bastion_treasure: {}
+
+  # Bastion bridge. Vanilla: 1-2 rolls, each 8% for 4-9 gold ingots and 8% for 1 gold block.
+  # Upgrade template 10%. No netherite.
+  bastion_bridge: {}
+
+  # Bastion hoglin stable. Vanilla: 1 roll that can give 1 netherite scrap (8%), 1-2 ancient debris (17%)
+  # or 2-4 gold blocks (16%), upgrade template 10%. No gold ingots.
+  bastion_hoglin_stable: {}
+
+  # Other bastion chests. Vanilla: 1 roll that can give 1 ancient debris (13%) or 1 netherite scrap (4%),
+  # 2 rolls that can give 1-6 gold ingots or 1 gold block (10% each), upgrade template 10%.
+  bastion_other: {}
+
+  # Ruined portals (overworld and nether). Vanilla: 4-8 rolls, each 1% for 2-8 gold ingots
+  # and 0.25% for 1-2 gold blocks. Also gold nuggets, gold gear and rarely an enchanted golden apple.
+  ruined_portal: {}
+
+  # Nether fortress. Vanilla: 2-4 rolls, each 19% for 1-3 gold ingots.
+  nether_bridge: {}
+
 messages:
   removed: "&cThis container was from the old map and has been removed."
   notify: "&8[&cOldLoot&8] &7Removed &f%type% &7at &f%world% %x% %y% %z% &7(%cause%)"
   reloaded: "&aConfig reloaded."
+  debug-on: "&aDebug on, details are logged to console."
+  debug-off: "&cDebug off."

@@ -6,6 +6,7 @@ import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.serializer.legacy.LegacyComponentSerializer;
 import org.bukkit.command.Command;
 import org.bukkit.command.CommandSender;
+import org.bukkit.configuration.ConfigurationSection;
 import org.bukkit.plugin.Plugin;
 import org.bukkit.plugin.java.JavaPlugin;
 import org.jetbrains.annotations.NotNull;
@@ -14,9 +15,11 @@ import java.time.LocalDate;
 import java.time.ZoneId;
 import java.time.ZoneOffset;
 import java.util.Date;
+import java.util.HashMap;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Locale;
+import java.util.Map;
 import java.util.Set;
 
 public final class JESOldLootRemover extends JavaPlugin {
@@ -27,6 +30,9 @@ public final class JESOldLootRemover extends JavaPlugin {
     private long cutoffMillis;
     private Set<String> ignoredRegions = Set.of();
     private Set<String> ignoredWorlds = Set.of();
+    private Map<String, LootRule> lootRules = Map.of();
+    private LootRule defaultLoot = LootRule.NONE;
+    private boolean debug;
 
     @Override
     public void onEnable() {
@@ -62,6 +68,29 @@ public final class JESOldLootRemover extends JavaPlugin {
         }
         ignoredRegions = lower(getConfig().getStringList("ignored-regions"));
         ignoredWorlds = lower(getConfig().getStringList("ignored-worlds"));
+
+        Map<String, LootRule> rules = new HashMap<>();
+        ConfigurationSection loot = getConfig().getConfigurationSection("loot");
+        LootRule fallback = LootRule.read(loot == null ? null : loot.getConfigurationSection("default"), LootRule.NONE);
+        if (loot != null) {
+            for (String key : loot.getKeys(false)) {
+                if (!key.equals("default")) rules.put(key.toLowerCase(Locale.ROOT), LootRule.read(loot.getConfigurationSection(key), fallback));
+            }
+        }
+        lootRules = rules;
+        defaultLoot = fallback;
+    }
+
+    LootRule lootRule(String table) {
+        return lootRules.getOrDefault(table, defaultLoot);
+    }
+
+    boolean debugEnabled() {
+        return debug;
+    }
+
+    void debug(String text) {
+        if (debug) getLogger().info("[debug] " + text);
     }
 
     private static Set<String> lower(List<String> list) {
@@ -78,12 +107,19 @@ public final class JESOldLootRemover extends JavaPlugin {
             sender.sendMessage(message("reloaded"));
             return true;
         }
+        if (args.length == 1 && args[0].equalsIgnoreCase("debug")) {
+            debug = !debug;
+            sender.sendMessage(message(debug ? "debug-on" : "debug-off"));
+            return true;
+        }
         return false;
     }
 
     @Override
     public @NotNull List<String> onTabComplete(@NotNull CommandSender sender, @NotNull Command command, @NotNull String alias, String @NotNull [] args) {
-        return args.length == 1 && "reload".startsWith(args[0].toLowerCase(Locale.ROOT)) ? List.of("reload") : List.of();
+        if (args.length != 1) return List.of();
+        String typed = args[0].toLowerCase(Locale.ROOT);
+        return List.of("reload", "debug").stream().filter(s -> s.startsWith(typed)).toList();
     }
 
     Component message(String key, String... replacements) {

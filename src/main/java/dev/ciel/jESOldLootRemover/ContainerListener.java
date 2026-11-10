@@ -22,7 +22,12 @@ import org.bukkit.event.block.BlockPlaceEvent;
 import org.bukkit.event.entity.EntityExplodeEvent;
 import org.bukkit.event.inventory.InventoryMoveItemEvent;
 import org.bukkit.event.inventory.InventoryOpenEvent;
+import org.bukkit.event.world.ChunkLoadEvent;
+import org.bukkit.event.world.LootGenerateEvent;
+import org.bukkit.inventory.BlockInventoryHolder;
 import org.bukkit.inventory.InventoryHolder;
+import org.bukkit.inventory.ItemStack;
+import org.bukkit.loot.Lootable;
 import org.bukkit.persistence.PersistentDataType;
 
 import java.sql.Connection;
@@ -101,6 +106,53 @@ final class ContainerListener implements Listener {
         }
     }
 
+    @EventHandler(priority = EventPriority.HIGH, ignoreCancelled = true)
+    public void onLoot(LootGenerateEvent event) {
+        String table = event.getLootTable().getKey().getKey();
+        if (!table.startsWith("chests/")) return;
+        table = table.substring(7);
+
+        Block block = event.getInventoryHolder() instanceof BlockInventoryHolder holder ? holder.getBlock() : null;
+        if (block != null) markSafe(block);
+
+        List<ItemStack> loot = new ArrayList<>(event.getLoot());
+        String before = plugin.debugEnabled() ? summary(loot) : null;
+        if (plugin.lootRule(table).apply(loot)) event.setLoot(loot);
+        if (before != null) {
+            plugin.debug("Loot " + table + (block == null ? "" : " at " + where(block)) + ": " + before + " -> " + summary(loot));
+        }
+    }
+
+    @EventHandler(priority = EventPriority.MONITOR)
+    public void onChunkLoad(ChunkLoadEvent event) {
+        if (!event.isNewChunk()) return;
+        int marked = 0;
+        for (BlockState state : event.getChunk().getTileEntities(false)) {
+            if (state instanceof Container container) {
+                container.getPersistentDataContainer().set(safeKey, PersistentDataType.BYTE, (byte) 1);
+                container.update(true, false);
+                marked++;
+            }
+        }
+        if (marked > 0) {
+            plugin.debug("New chunk " + event.getWorld().getName() + " " + event.getChunk().getX() + "," + event.getChunk().getZ() + ": marked " + marked + " containers safe");
+        }
+    }
+
+    private static String summary(List<ItemStack> loot) {
+        StringBuilder sb = new StringBuilder("[");
+        for (ItemStack item : loot) {
+            if (item == null) continue;
+            if (sb.length() > 1) sb.append(", ");
+            sb.append(item.getAmount()).append("x ").append(item.getType().name().toLowerCase(Locale.ROOT));
+        }
+        return sb.append(']').toString();
+    }
+
+    private static String where(Block block) {
+        return block.getWorld().getName() + " " + block.getX() + " " + block.getY() + " " + block.getZ();
+    }
+
     private void filterExplosion(List<Block> blocks) {
         List<Block> found = new ArrayList<>();
         Iterator<Block> it = blocks.iterator();
@@ -134,6 +186,12 @@ final class ContainerListener implements Listener {
             parts.add(block);
         }
         parts.removeIf(this::isSafe);
+        parts.removeIf(b -> {
+            if (!(b.getState(false) instanceof Lootable lootable) || !lootable.hasLootTable()) return false;
+            markSafe(b);
+            plugin.debug("Unlooted structure container at " + where(b) + ", marked safe");
+            return true;
+        });
         if (parts.isEmpty()) return parts;
 
         if (ignored.contains(block)) return List.of();
@@ -142,6 +200,7 @@ final class ContainerListener implements Listener {
                 || (regions != null && regions.inAny(block.getLocation(), plugin.ignoredRegions()))) {
             if (ignored.size() > 50_000) ignored.clear();
             ignored.add(block);
+            plugin.debug("Container at " + where(block) + " is in an ignored world or region");
             return List.of();
         }
         return parts;
@@ -173,6 +232,7 @@ final class ContainerListener implements Listener {
             }
         }
         if (targets.isEmpty()) return;
+        for (Block block : targets) plugin.debug("Checking " + block.getType() + " at " + where(block) + " (" + cause + ")");
 
         long cutoff = plugin.cutoffMillis();
         CoreProtectAPI api = plugin.coreProtect();
@@ -223,6 +283,7 @@ final class ContainerListener implements Listener {
         for (int i = 0; i < blocks.size(); i++) {
             Block block = blocks.get(i);
             if (results[i] == null) {
+                plugin.debug("Lookup failed for " + where(block) + ", retrying later");
                 allSafe = false;
                 Bukkit.getScheduler().runTaskLater(plugin, () -> pending.remove(block), 600L);
                 continue;
@@ -230,10 +291,12 @@ final class ContainerListener implements Listener {
             pending.remove(block);
             if (!block.getWorld().isChunkLoaded(block.getX() >> 4, block.getZ() >> 4)
                     || block.getType() != types.get(i)) {
+                plugin.debug("Block at " + where(block) + " changed or unloaded, skipped");
                 allSafe = false;
                 continue;
             }
             if (results[i]) {
+                plugin.debug("Placed after cutoff, marked safe: " + where(block));
                 markSafe(block);
                 reopen = block;
             } else {
